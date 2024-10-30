@@ -1,114 +1,139 @@
-"use client"
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { Search } from 'lucide-react'
+
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
 interface Book {
-  id: string,
-  selfLink: string,
+  id: string
+  selfLink: string
   volumeInfo: {
-    title: string | '' ,
-    subtitle?: string | '',
-    authors: string[] 
+    title: string
+    subtitle?: string
+    authors?: string[]
     imageLinks?: {
       thumbnail: string
     }
-    previewLink?: string | ''
+    previewLink?: string
   }
 }
-async function getBooks(searchParams: string): Promise<Book[] | undefined>{
-  if (searchParams === '') return undefined;
-  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchParams}`)
-  const data = await res.json()
-  return data.items || [];
-}
-export default function Home() {
-  const [searchField, setSearchField] = useState('');
-  const [books, setBooks] = useState<Book[]>([]);
-  const [filteredBooks, setFilteredBooks] = useState<Book[]>([]);
-  useEffect(() => {
-    const fetchBooks = async () => {
-      const data = await getBooks(searchField);
-      setBooks(data || []);
-    };
-    fetchBooks();
-  }, [searchField]);
-  useEffect(() => {
-    const newFilteredBooks = books.filter((book) => {
-      return book.volumeInfo.title.toLowerCase().includes(searchField.toLowerCase());
-    });
-    setFilteredBooks(newFilteredBooks);
-  }, [searchField, books]);
-  const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchField(e.target.value || '');
-  };
-  return (
-    <main className='flex flex-col items-center justify-center h-screen'>
-      <section className='w-[90%] min-w-[425px] max-w-[1024px]'>
-          <Search onSearchChange={onSearchChange} />
-          <Container>
-            {filteredBooks.length === 0 ? <NothingToShow /> : <BookList books={filteredBooks}/>}
-          </Container>
-      </section>
-    </main>
-  )
-}
-const Search = ({onSearchChange}: {onSearchChange: (e: React.ChangeEvent<HTMLInputElement>) =>  void}) => {
-  return(
-    <>
-      <form action="" autoComplete='off' className='flex flex-col items-center w-full mb-8'>
-        <fieldset className='w-full mb-2 border-2 rounded-md border-grey p-[10px] flex pb-[15px] focus-within:border-indigo-500 bg-[#eee]'>
-          <legend className='p-0 m-0'>Search terms*</legend>
-          <input id='textInput' type="search" placeholder='Search books . . .' className='w-full bg-transparent h-18 focus:outline-none' onChange={onSearchChange}/>
-        </fieldset>
-      </form>
-    </>
-  )
-}
-const BookList = ({books}: {books:Book[]}) => {
-  return (
-    <div className=' h-[500px] scroll-smooth overflow-y-scroll scrollbar-none'>
-      {books?.map((book) => (
-        <Book key={book.id} book={book} />
-      ))}
-    </div>
-  )
-}
-const Book = ({book}:{book: Book}) => {
-  const truncateText = (text: string | undefined, maxLength: number) => {
-    if (text && text.length > maxLength) {
-      return text.slice(0, maxLength) + '...';
+
+export default function Component() {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [books, setBooks] = useState<Book[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchBooks = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setBooks([])
+      return
     }
-    return text;
-  };
-  const books = book.volumeInfo;
-  return(  
-    <>
-        <Link key={book.id} href={`${books.previewLink}`} className={`w-full h-[33%] flex flex-row items-center border-b-1 border-b-grey border px-[25px] justify-between text-[18px] bg-[#eee] hover:bg-indigo-500`} target='_blank' rel='noopener'>
-          <p className='truncate '>{truncateText(books.title, 20)}</p>
-          <p className='truncate'>{truncateText(books?.subtitle, 30)}</p> 
-          <p className='truncate'>{truncateText(books.authors?.join(', '), 20)}</p> 
-          <Image src={book.volumeInfo.imageLinks?.thumbnail || ''} alt={book.volumeInfo.title} width={100} height={100} className='object-cover'/>
-        </Link>
-    </>
-  )
-}
-const Container = ({ children }: { children: React.ReactNode }) => {
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}`)
+      if (!res.ok) throw new Error('Failed to fetch books')
+      
+      const data = await res.json()
+      setBooks(data.items || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      setBooks([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchBooks(searchQuery)
+    }, 500)
+
+    return () => clearTimeout(debounceTimer)
+  }, [searchQuery, fetchBooks])
+
   return (
-    <div className='w-full rounded-lg shadow-lg'>
-      <hgroup className='border border-b-2 border-b-black h-[65px] flex flex-row w-full items-center px-9 justify-between rounded-t-lg text-lg font-[500] bg-[#ddd]'>
-        <h4>Title</h4>
-        <h4>Subtitle</h4>
-        <h4>Author</h4>
-        <h4>Thumbnail</h4>
-      </hgroup>
-      {children}
-    </div>
-  )
-}
-const NothingToShow = () => {
-  return (
-    <div className='flex flex-col items-center justify-center w-full h-[100px]'>
-      <h1 className='text-2xl text-grey'>Nothing to show . . .</h1>
+    <div className="container mx-auto py-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              type="search"
+              placeholder="Search for books..."
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 text-destructive">{error}</div>
+          ) : books.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {searchQuery ? 'No books found' : 'Start typing to search for books'}
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cover</TableHead>
+                    <TableHead className="w-[300px]">Title</TableHead>
+                    <TableHead className="hidden md:table-cell">Subtitle</TableHead>
+                    <TableHead>Author(s)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {books.map((book) => (
+                    <TableRow key={book.id}>
+                      <TableCell>
+                        <div className="h-16 w-12 relative">
+                          <Image
+                            src={book.volumeInfo.imageLinks?.thumbnail || '/placeholder.svg'}
+                            alt={book.volumeInfo.title}
+                            fill
+                            className="object-cover rounded"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <Link 
+                          href={book.volumeInfo.previewLink || '#'} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {book.volumeInfo.title}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">
+                        {book.volumeInfo.subtitle || '-'}
+                      </TableCell>
+                      <TableCell>
+                        {book.volumeInfo.authors?.join(', ') || 'Unknown'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
